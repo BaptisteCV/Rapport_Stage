@@ -1,0 +1,168 @@
+\documentclass[12pt, a4paper, french]{report}
+
+% Encodage et langue
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+
+% Marges
+\usepackage[top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm]{geometry}
+
+% Typographie et mise en page
+\usepackage{setspace}
+\onehalfspacing
+
+% En-têtes et pieds de page
+\usepackage{fancyhdr}
+
+% Couleurs
+\usepackage{xcolor}
+
+% Listes et énumérations
+\usepackage{enumitem}
+
+% Tableaux
+\usepackage{tabularx}
+\usepackage{booktabs}
+
+% Graphiques et images
+\usepackage{graphicx}
+\graphicspath{{figures/}{images/}}
+
+% Citations
+\usepackage{csquotes}
+
+% Liens et références
+\usepackage[hidelinks]{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=darkblue,
+    urlcolor=darkblue,
+    citecolor=darkblue
+}
+
+% Mathématiques
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Code source
+\usepackage{listings}
+
+% Bibliographie
+\usepackage[backend=bibtex, style=authoryear, sorting=nty]{biblatex}
+
+% Chapitres personnalisés
+\usepackage{titlesec}
+
+%==============================================
+% Configurations personnalisées
+%==============================================
+
+% Couleur personnalisée
+\definecolor{darkblue}{rgb}{0, 0, 0.5}
+
+% Configuration des en-têtes et pieds de page
+\setlength{\headheight}{14.61858pt}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\thepage}
+\lhead{\leftmark}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Configuration du code source
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{lightgray}
+}
+
+% Configuration de la bibliographie
+\addbibresource{references.bib}
+
+% Chapitres personnalisés
+\titleformat{\chapter}[display]
+{\normalfont\huge\bfseries\color{darkblue}}
+{\chaptertitlename\ \thechapter}{20pt}{\huge}
+
+% Espacement des chapitres
+\titlespacing*{\chapter}{0pt}{-40pt}{20pt}
+
+%==============================================
+% Inclure uniquement modele.tex
+%==============================================
+
+\includeonly{modele.tex}
+
+\begin{document}
+
+%==============================================
+% PAGE DE GARDE
+%==============================================
+
+\begin{titlepage}
+    \centering
+    
+    \vspace*{1cm}
+    
+    % Logo ou en-tête
+    \Large\textbf{Université de MONTPELLIER} \\
+    \large Master 2 MANU \\
+    
+    \vspace{3cm}
+    
+    % Titre
+    \Huge\textbf{\color{darkblue}Rapport de Stage} \\
+    
+    \vspace{1.5cm}
+    
+    % Sous-titre
+    \Large\textit{Simulation Efficace de Tomographie de Résistivité Electrique} \\
+    
+    \vspace{3cm}
+    
+    % Informations du stagiaire
+    \large
+    \textbf{Étudiant :} Baptiste CELLIER-VALENCIA\\
+    \vspace{0.5cm}
+    \textbf{Entreprise :} CNRS \\
+    \vspace{0.5cm}
+    \textbf{Durée :} Du 14 Avril 2026 au 31 Août 2026 \\
+    \vspace{0.5cm}
+    \textbf{Maître de stage :} Jérôme DRONIOU \\
+    \vspace{0.5cm}
+    \textbf{Encadrant universitaire :} Hélène MATHIS \\
+    
+    \vspace{3cm}
+    
+    % Date
+    \normalsize
+    \textit{Année académique 2025-2026} \\
+    \vspace{0.5cm}
+    
+    \vfill
+    
+\end{titlepage}
+
+%==============================================
+% TABLE DES MATIÈRES
+%==============================================
+
+\tableofcontents
+
+\newpage
+
+\include{modele.tex}
+%==============================================
+% BIBLIOGRAPHIE
+%==============================================
+
+\newpage
+
+\printbibliography[title=Références bibliographiques]
+
+\end{document}

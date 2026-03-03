@@ -1,0 +1,737 @@
+\chapter{Modèle Double Porosité Discrète}
+
+\section{Introduction au Modèle}
+\label{sec:intro}
+
+Afin de maîtriser la complexité et les coûts computationnels liés à la modélisation du flux de courant électrique dans les milieux fracturés complexes, nous adoptons une approche de modélisation en deux dimensions. Cette simplification, tout en conservant les aspects physiques essentiels du problème, permet de réduire significativement les exigences en termes de ressources de calcul, particulièrement lorsque l'on considère des réseaux de fractures denses couvrant des domaines de taille importante.
+
+La présente approche repose sur le concept de \textbf{modèle double porosité discrète (DDP)} \parencite{Roubinet2014}, où :
+\begin{itemize}
+    \item Les fractures sont représentées explicitement comme des éléments unidimensionnels,
+    \item La matrice rocheuse est discrétisée sur une grille plus grossière,
+    \item L'échange de courant entre les fractures et la matrice est modélisé analytiquement à l'échelle des fractures individuelles.
+\end{itemize}
+
+Cette approche hybride offre un équilibre optimal entre précision et efficacité computationnelle.
+
+\section{Équations Gouvernant le Modèle}
+\label{sec:equations}
+
+En régime permanent, le flux du courant électrique est régi par l'équation de conservation de charge au niveau ponctuel :
+
+\begin{equation}
+\nabla \cdot \mathbf{J} = Q
+\label{eq:charge_conservation}
+\end{equation}
+
+où $\mathbf{J}$ est la densité de courant (en A/m$^2$) et $Q$ est un terme source (ou puits) représentant une charge électrique $q$ (en C) par unité de volume et par unité de temps (en C/(m$^3$·s)).
+
+En exprimant la densité de courant par la loi d'Ohm :
+
+\begin{equation}
+\mathbf{J} = -\sigma \nabla \phi
+\label{eq:ohm_law}
+\end{equation}
+
+où $\sigma$ est la conductivité électrique (en S/m) et $\phi$ est le potentiel électrique (en V), on obtient :
+
+\begin{equation}
+-\nabla \cdot (\sigma \nabla \phi) = Q
+\label{eq:poisson}
+\end{equation}
+
+Cette équation de type Poisson constitue la base de toutes les techniques de modélisation géoélectrique.
+
+\section{Étapes Clés de la Modélisation}
+\label{sec:steps}
+
+La formulation du modèle DDP pour la simulation du flux de courant électrique dans les milieux fracturés implique trois étapes fondamentales :
+
+\begin{enumerate}
+    \item \textbf{Dérivation d'une expression analytique pour le potentiel électrique le long d'une fracture} (Section \ref{sec:analytical}) : Cette étape établit une formulation analytique permettant de décrire la variation du potentiel le long d'une fracture, en tenant compte de l'\u00e9change de courant avec la matrice environnante.
+    
+    \item \textbf{Développement d'une approche DFN modifiée pour le réseau de fractures} (Section \ref{sec:dfn}) : À partir des résultats de l'étape précédente, un système d'équations linéaires est développé pour assurer la conservation de charge au niveau du réseau de fractures, en intégrant explicitement l'échange fracture-matrice.
+    
+    \item \textbf{Développement d'une approche volumes finis modifiée pour la matrice} (Section \ref{sec:fv}) : Un second système d'équations linéaires est établi pour modéliser la conservation de charge au sein de la matrice rocheuse, en tenant compte également de l'échange avec les fractures.
+\end{enumerate}
+
+Ces trois étapes sont combinées pour former un système global d'équations linéaires permettant de déterminer le potentiel électrique en tous les points du domaine.
+
+\section{Discrétisation du Modèle et Nomenclature}
+\label{sec:nomenclature}
+
+\subsection{Discrétisation Spatiale}
+\label{subsec:discretization}
+
+La matrice rocheuse du domaine d'intérêt est discrétisée en cellules ou blocs réguliers, identifiés par les indices $(I,J)$, où $I = 1, \ldots, N_X$ et $J = 1, \ldots, N_Y$, avec $N_X$ et $N_Y$ étant respectivement le nombre de blocs dans les directions longitudinale et transversale.
+
+Les fractures du domaine sont représentées comme des éléments unidimensionnels. Pour faciliter les considérations, chaque fracture dans le domaine est traitée individuellement, chacune étant délimitée par deux nœuds. Le nombre total de fractures est déterminé par les nœuds qui comprennent :
+\begin{itemize}
+    \item Les extrémités des fractures,
+    \item Les intersections entre fractures,
+    \item Les intersections entre fractures et limites de blocs de matrice.
+\end{itemize}
+
+La figure \ref{fig:discretization} illustre cette discrétisation pour un exemple de trois fractures délimitées par douze nœuds.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Fig1.png}
+    \caption{Discrétisation du modèle double porosité discrète. La matrice est divisée en blocs réguliers (carrés bleus) identifiés par les indices $(I,J)$, tandis que les fractures sont représentées par des éléments 1-D (lignes noires) dont les extrémités sont les nœuds du domaine (cercles numérotés). Les nœuds comprennent les extrémités de fractures (cercles rouges), les intersections de fractures (cercles verts), et les intersections entre fractures et limites de blocs (cercles noirs).}
+    \label{fig:discretization}
+\end{figure}
+
+\subsection{Nomenclature et Notation}
+\label{subsec:notation}
+
+Chaque fracture $k$ est délimitée par les nœuds $i_k$ et $j_k$, et est caractérisée par :
+\begin{itemize}
+    \item Son ouverture : $b_f^k$ (en m),
+    \item Sa conductivité électrique : $\sigma_f^k$ (en S/m),
+    \item Son potentiel électrique variant le long de la fracture : $\phi_f^k = \phi_f^k(x_k)$.
+\end{itemize}
+
+Les potentiels aux extrémités de la fracture sont notés $\varphi_f^{i_k}$ et $\varphi_f^{j_k}$.
+
+À l'échelle du bloc de matrice, on utilise les notations suivantes :
+\begin{itemize}
+    \item Conductivité électrique de la matrice : $\sigma_m^{I,J}$ (en S/m),
+    \item Potentiel électrique de la matrice : $\varphi_m^{I,J}$ (en V),
+    \item Coefficient d'échange fracture-matrice : $\alpha_{fm}^{I,J}$ (en S/m).
+\end{itemize}
+
+Pour la discrétisation spatiale, $x_k$ désigne la variable spatiale le long de la fracture, avec $x_k = 0$ au nœud $i_k$ et $x_k = L_k$ au nœud $j_k$, où $L_k$ est la longueur de la fracture.
+
+On utilise la convention suivante : les indices minuscules $(i_k, j_k)$ décrivent les nœuds des fractures, tandis que les indices majuscules $(I,J)$ décrivent les coordonnées des blocs de matrice. Un bloc de matrice est également dénommé \textit{volume de contrôle}, noté $V_{I,J}$, terminologie courante dans la communauté des volumes finis.
+
+La figure \ref{fig:matrix_block} illustre un zoom d'un bloc de matrice montrant une fracture reliant les nœuds 8 et 9.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{Fig2.png}
+    \caption{Zoom d'un bloc de matrice montrant une fracture reliant les nœuds 8 et 9. Les extrémités de la $k$-ème fracture sont localisées à $x_k = 0$ et $x_k = L_k$, où $L_k$ est la longueur de la fracture. La conductivité électrique de la fracture est notée $\sigma_f^k$, l'ouverture de la fracture par $b_f^k$, et le potentiel électrique par $\phi_f^k = \phi_f^k(x_k)$. Les variables $\varphi_f^{i_k}$ et $\varphi_f^{j_k}$ désignent les potentiels aux extrémités de la fracture.}
+    \label{fig:matrix_block}
+\end{figure}
+
+\section{Expression Analytique du Potentiel Électrique le Long d'une Fracture}
+\label{sec:analytical}
+
+Considérons une fracture unidimensionnelle $k$ délimitée par les nœuds $i_k$ et $j_k$, possédant une conductivité électrique constante $\sigma_f^k$ le long de sa longueur. En appliquant l'équation \eqref{eq:poisson} à cette fracture, on obtient :
+
+\begin{equation}
+-\sigma_f^k \frac{\partial^2 \phi_f^k}{\partial x_k^2} = -Q_{fm}
+\label{eq:fracture_potential}
+\end{equation}
+
+où $x_k$ est la variable spatiale le long de la fracture allant de $i_k$ à $j_k$, et $Q_{fm}$ est le terme source correspondant à l'échange de courant électrique entre la fracture et la matrice environnante.
+
+Par convention, $Q_{fm}$ est positif lorsque le courant s'écoule de la fracture vers la matrice, et négatif lorsque le courant s'écoule de la matrice vers la fracture.
+
+En supposant que l'échange fracture-matrice peut être exprimé comme le produit d'un coefficient d'échange $\alpha_{fm}^{I,J}$ (défini à l'échelle du bloc de matrice) et de la différence entre les potentiels de la fracture et de la matrice :
+
+\begin{equation}
+Q_{fm} = -\alpha_{fm}^{I,J}(\varphi_m^{I,J} - \phi_f^k)
+\label{eq:exchange_rate}
+\end{equation}
+
+l'équation \eqref{eq:fracture_potential} peut être réarrangée en :
+
+\begin{equation}
+\frac{\partial^2 \phi_f^k}{\partial x_k^2} - \Gamma_k^{I,J} \phi_f^k = -\Gamma_k^{I,J} \varphi_m^{I,J}
+\label{eq:fracture_diff}
+\end{equation}
+
+où l'on a défini :
+
+\begin{equation}
+\Gamma_k^{I,J} = \frac{\alpha_{fm}^{I,J}}{\sigma_f^k}
+\end{equation}
+
+Cette équation différentielle du second ordre admet la solution générale :
+
+\begin{equation}
+\phi_f^k(x_k) = C_1 \exp\left(\sqrt{\Gamma_k^{I,J}} x_k\right) + C_2 \exp\left(-\sqrt{\Gamma_k^{I,J}} x_k\right) + \varphi_m^{I,J}
+\label{eq:general_solution}
+\end{equation}
+
+Avec les conditions aux limites de Dirichlet aux extrémités de la fracture :
+
+\begin{equation}
+\phi_f^k(0) = \varphi_f^{i_k}, \quad \phi_f^k(L_k) = \varphi_f^{j_k}
+\end{equation}
+
+les constantes d'intégration s'expriment :
+
+\begin{equation}
+C_1 = \varphi_f^{i_k} - C_2 - \varphi_m^{I,J}
+\label{eq:C1}
+\end{equation}
+
+\begin{equation}
+C_2 = \frac{\varphi_f^{j_k} - \varphi_m^{I,J} - (\varphi_f^{i_k} - \varphi_m^{I,J})\exp(\sqrt{\Gamma_k^{I,J}}L_k)}{\gamma(L_k)}
+\label{eq:C2}
+\end{equation}
+
+où :
+
+\begin{equation}
+\gamma(x_k) = \exp(-\sqrt{\Gamma_k^{I,J}} x_k) - \exp(\sqrt{\Gamma_k^{I,J}} x_k)
+\end{equation}
+
+L'expression \eqref{eq:general_solution} peut être réécrite sous la forme compacte :
+
+\begin{equation}
+\phi_f^k(x_k) = \beta(x_k) \varphi_f^{i_k} + \frac{\gamma(x_k)}{\gamma(L_k)} \varphi_f^{j_k} + \left[1 - \frac{\gamma(x_k)}{\gamma(L_k)} - \beta(x_k)\right] \varphi_m^{I,J}
+\label{eq:potential_compact}
+\end{equation}
+
+avec :
+
+\begin{equation}
+\beta(x_k) = \exp(\sqrt{\Gamma_k^{I,J}} x_k) - \frac{\gamma(x_k)}{\gamma(L_k)} \exp(\sqrt{\Gamma_k^{I,J}} L_k)
+\end{equation}
+
+Cette expression du potentiel électrique le long d'une fracture dépend à la fois des valeurs de potentiel aux extrémités de la fracture et du potentiel du bloc de matrice environnant. Elle constitue la base de l'intégration de l'échange fracture-matrice dans la formulation DFN modifiée pour le réseau de fractures (section suivante) et dans l'approche volumes finis modifiée pour la matrice.
+
+\section{Approche DFN Modifiée pour le Réseau de Fractures}
+\label{sec:dfn}
+
+L'approche DFN (Discrete Fracture Network) classique en hydrologie des milieux fracturés repose sur le principe de conservation de la masse à chaque intersection de fracture. Pour le problème du flux de courant électrique, on peut appliquer un principe analogue : la conservation de charge à chaque nœud d'intersection de fracture.
+
+Considérons un nœud d'intersection $i$ situé à l'intersection de $N_i$ fractures. En intégrant l'équation \eqref{eq:poisson} sur un petit volume $V_i$ contenant l'intersection et en utilisant le théorème de divergence de Gauss :
+
+\begin{equation}
+\int_{S_i} \sigma \nabla \phi \cdot \vec{n}_{S_i} \, dS = 0
+\label{eq:gauss}
+\end{equation}
+
+où $S_i$ est la surface contour de $V_i$ et $\vec{n}_{S_i}$ est son vecteur normal unitaire sortant.
+
+En tenant compte que chaque fracture $k$ arrivant au nœud $i$ possède une ouverture $b_f^k$, une conductivité $\sigma_f^k$, et une dérivée du potentiel $\frac{\partial \phi_f^k}{\partial x_k}$, on obtient :
+
+\begin{equation}
+\sum_{k=1}^{N_i} b_f^k \sigma_f^k \left.\frac{\partial \phi_f^k}{\partial x_k}\right|_{x_k=0} = 0
+\label{eq:charge_conservation_node}
+\end{equation}
+
+À la différence d'une approche DFN standard (qui suppose une variation linéaire du potentiel hydraulique entre les extrémités des fractures), nous calculons la dérivée de l'équation \eqref{eq:charge_conservation_node} en utilisant l'expression analytique du potentiel donnée par l'équation \eqref{eq:potential_compact}. Cela permet de tenir compte explicitement de l'échange fracture-matrice.
+
+La dérivée du potentiel selon $x_k$ s'exprime :
+
+\begin{equation}
+\frac{\partial \phi_f^k}{\partial x_k} = C_1 \sqrt{\Gamma_k^{I,J}} \exp(\sqrt{\Gamma_k^{I,J}} x_k) - C_2 \sqrt{\Gamma_k^{I,J}} \exp(-\sqrt{\Gamma_k^{I,J}} x_k)
+\label{eq:potential_derivative}
+\end{equation}
+
+qui peut être réécrite compactement comme :
+
+\begin{equation}
+\frac{\partial \phi_f^k}{\partial x_k} = a_{i_k} \varphi_f^{i_k} + a_{j_k} \varphi_f^{j_k} + a_{I,J} \varphi_m^{I,J}
+\label{eq:potential_derivative_compact}
+\end{equation}
+
+où :
+
+\begin{equation}
+a_{i_k} = \sqrt{\Gamma_k^{I,J}} \exp(\sqrt{\Gamma_k^{I,J}} x_k) + \frac{\sqrt{\Gamma_k^{I,J}} \lambda(x_k)}{\gamma(L_k)} \exp(\sqrt{\Gamma_k^{I,J}} L_k)
+\label{eq:aik}
+\end{equation}
+
+\begin{equation}
+a_{j_k} = -\frac{\sqrt{\Gamma_k^{I,J}} \lambda(x_k)}{\gamma(L_k)}
+\label{eq:ajk}
+\end{equation}
+
+\begin{equation}
+a_{I,J} = -\sqrt{\Gamma_k^{I,J}} \exp(\sqrt{\Gamma_k^{I,J}} x_k) + \frac{\sqrt{\Gamma_k^{I,J}} \lambda(x_k)}{\gamma(L_k)} \left[1 - \exp(\sqrt{\Gamma_k^{I,J}} L_k)\right]
+\label{eq:aIJ}
+\end{equation}
+
+avec :
+
+\begin{equation}
+\lambda(x_k) = \exp(\sqrt{\Gamma_k^{I,J}} x_k) + \exp(-\sqrt{\Gamma_k^{I,J}} x_k)
+\end{equation}
+
+En combinant les expressions \eqref{eq:charge_conservation_node} et \eqref{eq:potential_derivative_compact} pour chaque nœud du domaine, on obtient un système linéaire où les inconnues sont les valeurs du potentiel électrique en régime permanent, à la fois aux nœuds des fractures et dans les blocs de matrice.
+
+À ce stade, le nombre d'équations de ce système est inférieur au nombre d'inconnues. Des équations supplémentaires compléteront le système par la considération de la conservation de charge dans la matrice (section suivante).
+
+\textit{Remarque} : Lorsque le coefficient d'échange $\alpha_{fm}^{I,J}$ tend vers zéro dans les équations précédentes, les coefficients $a_{i_k}$, $a_{j_k}$ et $a_{I,J}$ tendent respectivement vers les valeurs $-1/L_k$, $1/L_k$ et $0$, conduisant à $\frac{\partial \phi_f^k}{\partial x_k} = 0$. Cela correspond à l'approche DFN standard, où le potentiel est constant le long de la fracture.
+
+\section{Approche Volumes Finis Modifiée pour le Domaine Matriciel}
+\label{sec:fv}
+
+Pour compléter notre modèle, nous considérons maintenant l'équation \eqref{eq:poisson} à l'échelle des blocs de matrice (volumes de contrôle). Le terme source correspond à l'échange de courant électrique entre les fractures et la matrice, noté $Q_{fm}$.
+
+En intégrant l'équation \eqref{eq:poisson} sur le volume de contrôle $V_{I,J}$ et en utilisant le théorème de divergence de Gauss :
+
+\begin{equation}
+-\int_{S_{I,J}} (\sigma_m \nabla \phi_m) \cdot \vec{n}_{S_{I,J}} \, dS = \int_{V_{I,J}} Q_{fm} \, dV
+\label{eq:fv_integral}
+\end{equation}
+
+où $S_{I,J}$ est la surface contour de $V_{I,J}$ et $\vec{n}_{S_{I,J}}$ est son vecteur normal unitaire sortant.
+
+Le membre de gauche de l'équation \eqref{eq:fv_integral} peut être discrétisé par la méthode des volumes finis :
+
+\begin{equation}
+\begin{split}
+-\int_{S_{I,J}} (\sigma_m \nabla \phi_m) \cdot \vec{n}_{S_{I,J}} \, dS = &\, \sigma_m^W (\varphi_m^{I,J} - \varphi_m^{I-1,J}) \\
+&- \sigma_m^E (\varphi_m^{I+1,J} - \varphi_m^{I,J}) \\
+&+ \sigma_m^S (\varphi_m^{I,J} - \varphi_m^{I,J-1}) \\
+&- \sigma_m^N (\varphi_m^{I,J+1} - \varphi_m^{I,J})
+\end{split}
+\label{eq:fv_discretized}
+\end{equation}
+
+où les coefficients $\sigma_m^W$, $\sigma_m^E$, $\sigma_m^S$ et $\sigma_m^N$ correspondent respectivement aux directions ouest, est, sud et nord. Ils s'expriment :
+
+\begin{equation}
+\sigma_m^W = \frac{\Delta y}{\Delta x} \sigma_m^{[(I-1,J),(I,J)]}
+\label{eq:sigmaW}
+\end{equation}
+
+\begin{equation}
+\sigma_m^E = \frac{\Delta y}{\Delta x} \sigma_m^{[(I,J),(I+1,J)]}
+\label{eq:sigmaE}
+\end{equation}
+
+\begin{equation}
+\sigma_m^S = \frac{\Delta x}{\Delta y} \sigma_m^{[(I,J),(I,J-1)]}
+\label{eq:sigmaS}
+\end{equation}
+
+\begin{equation}
+\sigma_m^N = \frac{\Delta x}{\Delta y} \sigma_m^{[(I,J),(I,J+1)]}
+\label{eq:sigmaN}
+\end{equation}
+
+où $\Delta x$ et $\Delta y$ sont les longueurs des blocs dans les directions longitudinale et transversale, respectivement. Les termes $\sigma_m^{[(I,J),(K,L)]}$ représentent la conductivité de la matrice entre les blocs $(I,J)$ et $(K,L)$ et sont évalués comme la moyenne harmonique des conductivités de ces deux blocs.
+
+Puisque l'échange de courant ne s'effectue que le long des fractures situées à l'intérieur du volume de contrôle $V_{I,J}$, le terme source $Q_{fm}$ est non nul uniquement le long de ces fractures. Par conséquent, le membre de droite de l'équation \eqref{eq:fv_integral} peut être réécrit :
+
+\begin{equation}
+\int_{V_{I,J}} Q_{fm} \, dV = \sum_{k=1}^{N_f^{I,J}} \int_0^{L_k} Q_{fm} \, dx_k
+\label{eq:source_integral}
+\end{equation}
+
+où $N_f^{I,J}$ est le nombre de fractures contenues dans $V_{I,J}$.
+
+En combinant les expressions \eqref{eq:source_integral} et \eqref{eq:exchange_rate} :
+
+\begin{equation}
+\int_{V_{I,J}} Q_{fm} \, dV = -\alpha_{fm}^{I,J} \varphi_m^{I,J} \sum_{k=1}^{N_f^{I,J}} L_k + \alpha_{fm}^{I,J} \sum_{k=1}^{N_f^{I,J}} \tilde{\phi}_f^k
+\label{eq:source_combined}
+\end{equation}
+
+où :
+
+\begin{equation}
+\tilde{\phi}_f^k = \int_0^{L_k} \phi_f^k \, dx_k
+\label{eq:integrated_potential}
+\end{equation}
+
+est le potentiel intégré le long de la fracture.
+
+En utilisant l'expression analytique du potentiel le long d'une fracture donnée par l'équation \eqref{eq:potential_compact}, le potentiel intégré peut être exprimé comme :
+
+\begin{equation}
+\tilde{\phi}_f^k = c_{i_k} \varphi_f^{i_k} + c_{j_k} \varphi_f^{j_k} + c_{I,J} \varphi_m^{I,J}
+\label{eq:integrated_potential_form}
+\end{equation}
+
+où :
+
+\begin{equation}
+c_{i_k} = \int_0^{L_k} \beta(x_k) \, dx_k
+\label{eq:cik}
+\end{equation}
+
+\begin{equation}
+c_{j_k} = \int_0^{L_k} \frac{\gamma(x_k)}{\gamma(L_k)} \, dx_k
+\label{eq:cjk}
+\end{equation}
+
+\begin{equation}
+c_{I,J} = \int_0^{L_k} \left[1 - \frac{\gamma(x_k)}{\gamma(L_k)} - \beta(x_k)\right] \, dx_k
+\label{eq:cIJ}
+\end{equation}
+
+Ces intégrales peuvent être évaluées analytiquement, donnant :
+
+\begin{equation}
+c_{i_k} = \frac{\exp(\sqrt{\Gamma_k^{I,J}} L_k) - 1}{\sqrt{\Gamma_k^{I,J}}} + \frac{\exp(\sqrt{\Gamma_k^{I,J}} L_k)}{\sqrt{\Gamma_k^{I,J}} \gamma(L_k)} \left[\exp(-\sqrt{\Gamma_k^{I,J}} L_k) + \exp(\sqrt{\Gamma_k^{I,J}} L_k) - 2\right]
+\label{eq:cik_explicit}
+\end{equation}
+
+\begin{equation}
+c_{j_k} = -\frac{\exp(-\sqrt{\Gamma_k^{I,J}} L_k) + \exp(\sqrt{\Gamma_k^{I,J}} L_k) - 2}{\gamma(L_k) \sqrt{\Gamma_k^{I,J}}}
+\label{eq:cjk_explicit}
+\end{equation}
+
+\begin{equation}
+c_{I,J} = L_k - c_{j_k} - c_{i_k}
+\label{eq:cIJ_explicit}
+\end{equation}
+
+Cela conduit à l'expression suivante pour l'échange de courant fracture-matrice intégré sur le volume de contrôle $V_{I,J}$ :
+
+\begin{equation}
+\begin{split}
+\int_{V_{I,J}} Q_{fm} \, dV = \varphi_m^{I,J} \alpha_{fm}^{I,J} \left[-\sum_{k=1}^{N_f^{I,J}} L_k + \sum_{k=1}^{N_f^{I,J}} c_{I,J}^k\right] \\
++ \alpha_{fm}^{I,J} \sum_{k=1}^{N_f^{I,J}} \left[c_{i_k} \varphi_f^{i_k} + c_{j_k} \varphi_f^{j_k}\right]
+\label{eq:exchange_integrated}
+\end{split}
+\end{equation}
+
+En combinant les expressions \eqref{eq:fv_discretized} et \eqref{eq:exchange_integrated} dans l'équation \eqref{eq:fv_integral}, on obtient l'expression suivante pour la conservation de charge du bloc de matrice $(I,J)$ :
+
+\begin{equation}
+\begin{split}
+A_{I,J} \varphi_m^{I,J} + A_{I-1,J} \varphi_m^{I-1,J} + A_{I+1,J} \varphi_m^{I+1,J} + A_{I,J-1} \varphi_m^{I,J-1} + A_{I,J+1} \varphi_m^{I,J+1} \\
+- \alpha_{fm}^{I,J} \sum_{k=1}^{N_f^{I,J}} \left[c_{i_k} \varphi_f^{i_k} + c_{j_k} \varphi_f^{j_k}\right] = 0
+\label{eq:matrix_conservation}
+\end{split}
+\end{equation}
+
+où :
+
+\begin{equation}
+A_{I-1,J} = -\frac{\Delta y}{\Delta x} \sigma_m^{[(I-1,J),(I,J)]}
+\label{eq:AI-1J}
+\end{equation}
+
+\begin{equation}
+A_{I+1,J} = -\frac{\Delta y}{\Delta x} \sigma_m^{[(I,J),(I+1,J)]}
+\label{eq:AI+1J}
+\end{equation}
+
+\begin{equation}
+A_{I,J-1} = -\frac{\Delta x}{\Delta y} \sigma_m^{[(I,J),(I,J-1)]}
+\label{eq:AIJ-1}
+\end{equation}
+
+\begin{equation}
+A_{I,J+1} = -\frac{\Delta x}{\Delta y} \sigma_m^{[(I,J),(I,J+1)]}
+\label{eq:AIJ+1}
+\end{equation}
+
+\begin{equation}
+A_{I,J} = -(A_{I-1,J} + A_{I+1,J} + A_{I,J-1} + A_{I,J+1}) + \alpha_{fm}^{I,J} \left[\sum_{k=1}^{N_f^{I,J}} L_k - \sum_{k=1}^{N_f^{I,J}} c_{I,J}^k\right]
+\label{eq:AIJ}
+\end{equation}
+
+En appliquant cette expression à chaque bloc de matrice du domaine, on obtient un système linéaire comprenant $N_X \cdot N_Y$ équations. Ce système, associé aux équations de conservation de charge du réseau de fractures (section précédente), forme le système linéaire global qui exprime la conservation de charge dans les fractures et dans la matrice en tenant compte de l'échange de courant entre ces deux domaines.
+
+Ce système global permet de déterminer le potentiel électrique en régime permanent à tous les points du domaine : à la fois aux extrémités des fractures et dans les volumes de contrôle de la matrice rocheuse.
+
+\section{Extension 2.5D du modèle}
+
+Le passage du modèle 2D au cadre 2.5D se fait par une transformée de Fourier-cosinus selon la direction transverse \parencite{Caballero2017}. En 3D, la conservation de charge s'écrit :
+
+\begin{equation}
+-\nabla \cdot [\sigma(x,y,z) \nabla \phi(x,y,z)] = I \delta(x-x_0)\delta(y-y_0)\delta(z-z_0)
+\end{equation}
+
+En supposant $\sigma(x,y,z)=\sigma(x,z)$, la symétrie en $y$ et une source en $y=0$, l'équation devient, dans l'espace de Fourier :
+
+\begin{equation}
+-\nabla \cdot [\sigma(x,z) \nabla \bar{\phi}(x,\omega,z)] + \omega^2 \sigma(x,z) \bar{\phi}(x,\omega,z)
+= \frac{I}{2} \delta(x-x_0)\delta(z-z_0)
+\end{equation}
+
+Les champs $\phi$ et $\bar{\phi}$ sont reliés par :
+
+\begin{equation}
+\bar{\phi}(x,\omega,z)=\int_0^{\infty} \phi(x,y,z)\cos(\omega y)\,dy
+\end{equation}
+
+\begin{equation}
+\phi(x,y,z)=\frac{2}{\pi}\int_0^{\infty} \bar{\phi}(x,\omega,z)\cos(\omega y)\,d\omega
+\end{equation}
+
+\section{Potentiel électrique analytique le long d'une fracture en 2.5D}
+
+Pour une fracture $k$ d'ouverture $b_f^k$ et de conductivité $\sigma_f^k$, l'équation (2) en Fourier s'écrit :
+
+\begin{equation}
+-\sigma_f^k \frac{\partial^2 \bar{\phi}_f^k}{\partial x_k^2} + \omega^2 \sigma_f^k \bar{\phi}_f^k = -\bar{Q}_{fm}^k
+\end{equation}
+
+avec $\bar{\phi}_f^k=\bar{\phi}_f^k(x_k)$ et le terme d'échange fracture-matrice :
+
+\begin{equation}
+\bar{Q}_{fm}^k = -\alpha_{fm}^{I,J}\left(\bar{\varphi}_m^{I,J}-\bar{\phi}_f^k\right)
+\end{equation}
+
+où $\alpha_{fm}^{I,J}=\sigma_m^{I,J}/d_{fm}^{I,J}$. En imposant des conditions de Dirichlet $\bar{\varphi}_f^{i_k}$ et $\bar{\varphi}_f^{j_k}$, la solution s'écrit :
+
+\begin{equation}
+\bar{\phi}_f^k(x_k,\omega)=\beta_w(x_k)\bar{\varphi}_f^{i_k}+\frac{\gamma_w(x_k)}{\gamma_w(L_k)}\bar{\varphi}_f^{j_k}
++\frac{\Gamma_k^{I,J}}{\Gamma_k^{I,J}+\omega^2}\left[1-\beta_w(x_k)-\frac{\gamma_w(x_k)}{\gamma_w(L_k)}\right]\bar{\varphi}_m^{I,J}
+\end{equation}
+
+avec
+
+\begin{equation}
+\Gamma_k^{I,J}\equiv \frac{\alpha_{fm}^{I,J}}{b_f^k\sigma_f^k}
+\end{equation}
+
+\begin{equation}
+\beta_w(x_k)=\exp\left(x_k\sqrt{\Gamma_k^{I,J}+\omega^2}\right)-\frac{\gamma_w(x_k)}{\gamma_w(L_k)}\exp\left(L_k\sqrt{\Gamma_k^{I,J}+\omega^2}\right)
+\end{equation}
+
+\begin{equation}
+\gamma_w(x_k)=\exp\left(-x_k\sqrt{\Gamma_k^{I,J}+\omega^2}\right)-\exp\left(x_k\sqrt{\Gamma_k^{I,J}+\omega^2}\right)
+\end{equation}
+
+\section{Approche DFN Modifiée pour le Réseau de Fractures en 2.5D}
+
+Au niveau du réseau de fractures, la conservation de charge en un nœud $i$ conduit à :
+
+\begin{equation}
+b_f^i\omega^2\sigma_f^i\bar{\phi}_f^k\big|_{x_k=0}-\sigma_f^i\sum_{k=1}^{N_i}\left.\frac{\partial \bar{\phi}_f^k}{\partial x_k}\right|_{x_k=0}=0
+\end{equation}
+
+En utilisant l'expression précédente, on obtient :
+
+\begin{equation}
+b_f^i\omega^2\sigma_f^i\bar{\varphi}_f^{i_k}-\sigma_f^i\sum_{k=1}^{N_i}\left(A_{i_k}\bar{\varphi}_f^{i_k}+A_{j_k}\bar{\varphi}_f^{j_k}+A_{I,J}\bar{\varphi}_m^{I,J}\right)=0
+\end{equation}
+
+avec
+
+\begin{equation}
+A_{i_k}=\zeta_w(x_k)\sqrt{\Gamma_k^{I,J}+\omega^2}
+\end{equation}
+
+\begin{equation}
+A_{j_k}=-\frac{\lambda_w(x_k)}{\gamma_w(L_k)}\sqrt{\Gamma_k^{I,J}+\omega^2}
+\end{equation}
+
+\begin{equation}
+A_{I,J}=-\frac{\Gamma_k^{I,J}}{\Gamma_k^{I,J}+\omega^2}\left(A_{i_k}+A_{j_k}\right)
+\end{equation}
+
+et
+
+\begin{equation}
+\zeta_w(x_k)=\exp\left(x_k\sqrt{\Gamma_k^{I,J}+\omega^2}\right)+\frac{\lambda_w(x_k)}{\gamma_w(L_k)}\exp\left(L_k\sqrt{\Gamma_k^{I,J}+\omega^2}\right)
+\end{equation}
+
+\begin{equation}
+\lambda_w(x_k)=\exp\left(x_k\sqrt{\Gamma_k^{I,J}+\omega^2}\right)+\exp\left(-x_k\sqrt{\Gamma_k^{I,J}+\omega^2}\right)
+\end{equation}
+
+\section{Schéma volumes finis dans la matrice}
+
+Dans la matrice, l'équation en Fourier est intégrée sur chaque bloc $V_{I,J}$ :
+
+\begin{equation}
+-\int_{V_{I,J}} \nabla\cdot\left(\sigma_m\nabla \bar{\varphi}_m^{I,J}\right)\,dV+\int_{V_{I,J}}\omega^2\sigma_m\bar{\varphi}_m^{I,J}\,dV=\int_{V_{I,J}} \bar{Q}_{fm}^k\,dV
+\end{equation}
+
+Le membre de gauche se discrétise sous la forme :
+
+\begin{equation}
+M_{I,J}=C_{I,J}\bar{\varphi}_m^{I,J}+C_{I,J}^W\bar{\varphi}_m^{I-1,J}+C_{I,J}^E\bar{\varphi}_m^{I+1,J}
++C_{I,J}^S\bar{\varphi}_m^{I,J-1}+C_{I,J}^N\bar{\varphi}_m^{I,J+1}
+\end{equation}
+
+avec
+
+\begin{equation}
+C_{I,J}^W=-\frac{\Delta z}{\Delta x}H_{(I-1,J),(I,J)}
+\end{equation}
+
+\begin{equation}
+C_{I,J}^E=-\frac{\Delta z}{\Delta x}H_{(I+1,J),(I,J)}
+\end{equation}
+
+\begin{equation}
+C_{I,J}^S=-\frac{\Delta x}{\Delta z}H_{(I,J-1),(I,J)}
+\end{equation}
+
+\begin{equation}
+C_{I,J}^N=-\frac{\Delta x}{\Delta z}H_{(I,J+1),(I,J)}
+\end{equation}
+
+\begin{equation}
+C_{I,J}=\omega^2\sigma_m^{I,J}\Delta x\Delta z-C_{I,J}^W-C_{I,J}^E-C_{I,J}^S-C_{I,J}^N
+\end{equation}
+
+où $H_{(K,L),(I,J)}=\frac{2}{\left(1/\sigma_m^{K,L}+1/\sigma_m^{I,J}\right)}$ est la moyenne harmonique. Le terme source s'écrit :
+
+\begin{equation}
+\int_{V_{I,J}} \bar{Q}_{fm}^k\,dV=N_f^{I,J}\sum_{k=1}\int_0^{L_k}\bar{Q}_{fm}^k\,dx_k
+\end{equation}
+
+\begin{equation}
+\int_{V_{I,J}} \bar{Q}_{fm}^k\,dV=-\alpha_{fm}^{I,J}\bar{\varphi}_m^{I,J}N_f^{I,J}\sum_{k=1}L_k+\alpha_{fm}^{I,J}N_f^{I,J}\sum_{k=1}\bar{\Phi}_f^k
+\end{equation}
+
+\begin{equation}
+\bar{\Phi}_f^k=D_{i_k}\bar{\varphi}_f^{i_k}+D_{j_k}\bar{\varphi}_f^{j_k}+D_{I,J}\bar{\varphi}_m^{I,J}
+\end{equation}
+
+avec
+
+\begin{equation}
+D_{i_k}=\frac{\zeta_w(L_k)-1}{\sqrt{\Gamma_k^{I,J}+\omega^2}}-\frac{2\exp\left(\sqrt{\Gamma_k^{I,J}+\omega^2}L_k\right)}{\gamma_w(L_k)\sqrt{\Gamma_k^{I,J}+\omega^2}}
+\end{equation}
+
+\begin{equation}
+D_{j_k}=\frac{2-\lambda_w(L_k)}{\gamma_w(L_k)\sqrt{\Gamma_k^{I,J}+\omega^2}}
+\end{equation}
+
+\begin{equation}
+D_{I,J}=\frac{\Gamma_k^{I,J}}{\Gamma_k^{I,J}+\omega^2}\left(L_k-D_{j_k}-D_{i_k}\right)
+\end{equation}
+
+Enfin, l'expression discrétisée s'écrit :
+
+\begin{equation}
+\begin{split}
+\left[C_{I,J}+\alpha_{fm}^{I,J}N_f^{I,J}\sum_{k=1}(L_k-D_{I,J})\right]\bar{\varphi}_m^{I,J}+C_{I,J}^W\bar{\varphi}_m^{I-1,J}+C_{I,J}^E\bar{\varphi}_m^{I+1,J} \\
++C_{I,J}^S\bar{\varphi}_m^{I,J-1}+C_{I,J}^N\bar{\varphi}_m^{I,J+1}-\alpha_{fm}^{I,J}N_f^{I,J}\sum_{k=1}\left(D_{i_k}\bar{\varphi}_f^{i_k}+D_{j_k}\bar{\varphi}_f^{j_k}\right)=0
+\end{split}
+\end{equation}
+
+\section{Conditions aux Bords}
+\label{sec:boundary_conditions}
+
+Lors de la simulation d'expériences de tomographie électrique (ERT), il est essentiel d'appliquer des conditions aux bords appropriées pour reproduire fidèlement le comportement du potentiel électrique dans un milieu s'étendant théoriquement jusqu'à l'infini. Des \textbf{conditions aux bords mixtes} sont couramment appliquées aux frontières gauche, droite et inférieure du domaine de calcul. Ces conditions permettent de reproduire le comportement naturel du potentiel électrique à des positions éloignées de la source d'injection ponctuelle, ce qui permet de réduire significativement la taille du domaine computationnel et donc le coût de calcul associé.
+
+\subsection{Formulation dans le domaine de Fourier}
+
+Dans le domaine de Fourier, les conditions aux bords mixtes s'écrivent sous la forme générale :
+
+\begin{equation}
+\alpha(x,z) \bar{\phi} + \frac{\partial \bar{\phi}}{\partial \vec{n}} = 0
+\label{eq:mixed_bc}
+\end{equation}
+
+où $\vec{n}$ est la normale sortante à la frontière sur laquelle les conditions sont appliquées, et la position $(x,z)$ est située sur l'un des bords du domaine.
+
+Suivant l'approche de Dey \& Morrison (1979), $\alpha$ est donné par :
+
+\begin{equation}
+\alpha = \omega \frac{K_1(\omega r)}{K_0(\omega r)} \left( \frac{\vec{n} \cdot \vec{r}}{r} \right)
+\label{eq:alpha_coefficient}
+\end{equation}
+
+où :
+\begin{itemize}[label = \textbullet]
+    \item $K_0$ et $K_1$ sont les fonctions de Bessel modifiées de seconde espèce d'ordres 0 et 1 respectivement,
+    \item $\omega$ est le nombre d'onde associé à la variable spatiale $y$,
+    \item $r = \sqrt{(x-x_0)^2 + z^2}$ est la distance entre la position considérée $(x,z)$ sur le bord du domaine et le point source situé à la position $(x_0, z_0)$ avec $z_0 = 0$.
+\end{itemize}
+
+\subsection{Implémentation dans l'approche DDP}
+
+Pour appliquer ces conditions aux bords dans le cadre de notre approche de double porosité discrète (DDP), nous utilisons une \textbf{méthode de cellules fantômes} (ghost-cell method). Cette méthode conduit à l'expression suivante :
+
+\begin{equation}
+-\frac{\partial \bar{\phi}}{\partial \vec{n}} = \frac{2\alpha}{2 + \alpha \Delta} \bar{\phi}
+\label{eq:ghost_cell_bc}
+\end{equation}
+
+où $\Delta$ est la taille de la cellule et $\bar{\phi}$ est la transformée de Fourier-cosinus du potentiel électrique à l'emplacement de la condition aux bords.
+
+Cette formulation permet d'intégrer naturellement les conditions aux bords dans le système linéaire global, en modifiant les coefficients des équations discrétisées pour les blocs de matrice situés aux frontières du domaine.
+
+\subsection{Intégration des termes de bord dans le schéma}
+
+On repart de l'équation matrice en Fourier (équation (1.63)) écrite sur un volume de contrôle $V_{I,J}$ :
+
+\begin{equation}
+-\int_{V_{I,J}} \nabla\cdot\left(\sigma_m\nabla \bar{\varphi}_m^{I,J}\right)\,dV+\int_{V_{I,J}}\omega^2\sigma_m\bar{\varphi}_m^{I,J}\,dV=\int_{V_{I,J}} \bar{Q}_{fm}\,dV.
+\label{eq:matrix_start_163}
+\end{equation}
+
+En appliquant le théorème de Green-Ostrogradsky au terme diffusif, on obtient :
+
+\begin{equation}
+-\int_{V_{I,J}} \nabla\cdot\left(\sigma_m\nabla \bar{\varphi}_m^{I,J}\right)\,dV
+=-\int_{\partial V_{I,J}} \sigma_m\nabla \bar{\varphi}_m^{I,J}\cdot\vec{n}\,dS
+=-\sum_{F\in\{W,E,S,N\}}\int_{\Delta_F}\sigma_m\frac{\partial\bar{\varphi}_m^{I,J}}{\partial\vec{n}}\,d\ell,
+\label{eq:ostro_applied}
+\end{equation}
+
+où $\Delta_F$ désigne la face $F$ du volume de contrôle et $\vec{n}$ la normale sortante.
+
+Pour chaque face du volume, on doit distinguer deux cas :
+
+\textit{Face intérieure} (partageant deux blocs de matrice) : on discrétise le flux par différences finies centrées en utilisant la moyenne harmonique, comme en (1.64).
+
+\textit{Face frontière globale} (coïncidant avec la limite du domaine de calcul) : on substitue la condition aux bords \eqref{eq:ghost_cell_bc} dans l'intégrale de flux :
+
+\begin{equation}
+-\int_{\Delta_F}\sigma_m^{I,J}\frac{\partial\bar{\varphi}_m^{I,J}}{\partial\vec{n}}\,d\ell
+=\int_{\Delta_F}\sigma_m^{I,J}\frac{2\alpha_F}{2+\alpha_F\Delta_F}\bar{\varphi}_m^{I,J}\,d\ell
+\simeq\sigma_m^{I,J}\frac{2\alpha_F}{2+\alpha_F\Delta_F}\Delta_F\bar{\varphi}_m^{I,J},
+\label{eq:boundary_flux_subst}
+\end{equation}
+
+où $\Delta_W=\Delta_E=\Delta z$ (longueur verticale), $\Delta_S=\Delta_N=\Delta x$ (longueur horizontale), et la distance du centre à la face est aussi notée $\Delta_W=\Delta_E=\Delta x$ (marche spatiale), $\Delta_S=\Delta_N=\Delta z$.
+
+En discrétisant le terme de réaction et en reportant dans \eqref{eq:matrix_start_163}, on retrouve la forme du schéma volumes finis avec les notations de (1.64) :
+
+\begin{equation}
+\begin{split}
+\left[C_{I,J}+\alpha_{fm}^{I,J}N_f^{I,J}\sum_{k=1}(L_k-D_{I,J})\right]\bar{\varphi}_m^{I,J}
++C_{I,J}^W\bar{\varphi}_m^{I-1,J}+C_{I,J}^E\bar{\varphi}_m^{I+1,J} \\
++C_{I,J}^S\bar{\varphi}_m^{I,J-1}+C_{I,J}^N\bar{\varphi}_m^{I,J+1}
+-\alpha_{fm}^{I,J}N_f^{I,J}\sum_{k=1}\left(D_{i_k}\bar{\varphi}_f^{i_k}+D_{j_k}\bar{\varphi}_f^{j_k}\right)=0,
+\end{split}
+\label{eq:scheme_with_bc}
+\end{equation}
+
+où les coefficients $C_{I,J}^F$ sont définis selon que la face $F$ est intérieure ou frontière globale :
+\begin{itemize}[label = \textbullet]
+    \item \textbf{Face intérieure} : $C_{I,J}^F$ suit la définition (1.64) en utilisant la moyenne harmonique,
+    \item \textbf{Face frontière globale} $F$ (ex. : $I=1$ pour West, $I=N_X$ pour East, $J=1$ pour South) : 
+    $$C_{I,J}^F=0, \qquad C_{I,J}\leftarrow C_{I,J}+\sigma_m^{I,J}\frac{2\alpha_F}{2+\alpha_F\Delta_F}\,\Delta_F.$$
+\end{itemize}
+
+Le schéma garde ainsi la structure de (1.64), seul le traitement des faces qui démarquent la \emph{frontière globale} du domaine s'en trouve modifié.
+
+\section{Assemblage du Système Global}
+\label{sec:global_system}
+
+La formulation du modèle DDP couple trois systèmes d'équations :
+
+\begin{enumerate}
+    \item \textbf{Conservation de charge aux nœuds des fractures} (Section \ref{sec:dfn}) : 
+    Un ensemble d'équations linéaires issues du bilan de charge en chaque nœud du réseau de fractures, exprimant la conservation du flux électrique le long des fractures et incorporant l'échange matrice-fracture via leur expression analytique.
+    
+    \item \textbf{Conservation de charge dans la matrice} (Section \ref{sec:fv}) : 
+    Un ensemble d'équations volumes finis appliquées à chaque bloc de matrice, avec modification des coefficients de diagonale et des entrées hors-diagonale pour les cellules situées à la frontière du domaine global, selon la section \ref{sec:boundary_conditions}.
+    
+    \item \textbf{Conditions aux bords mixtes} : 
+    Intégrées via modification locale des coefficients des équations matricielles au bord, sans inconnue supplémentaire.
+\end{enumerate}
+
+L'assemblage du système global procède comme suit :
+
+\begin{equation}
+\mathbf{A}\,\bar{\boldsymbol{\varphi}}=\mathbf{b},
+\label{eq:global_system}
+\end{equation}
+
+où :
+\begin{itemize}[label = \textbullet]
+    \item $\bar{\boldsymbol{\varphi}}$ est le vecteur des inconnues groupant tous les potentiels : 
+    les potentiels aux nœuds du réseau de fractures $\{\bar{\varphi}_f^{i_k}\}$ et les potentiels dans la matrice $\{\bar{\varphi}_m^{I,J}\}$,
+    
+    \item $\mathbf{A}$ est la matrice globale composée de blocs :
+    \begin{itemize}
+        \item Lignes correspondant aux fractures : coefficients issus de (section \ref{sec:dfn}),
+        \item Lignes correspondant aux blocs de matrice : coefficients issus de (1.64) avec modifications de bord (1.81)-(1.82),
+    \end{itemize}
+    
+    \item $\mathbf{b}$ est le vecteur second membre agrégé (nul pour la contribution en régime permanent sans charge ponctuelle ajoutée).
+\end{itemize}
+
+Ce système linéaire est ensuite résolu numériquement pour déterminer le potentiel électrique en tous les points du domaine (nœuds de fractures et blocs de matrice).

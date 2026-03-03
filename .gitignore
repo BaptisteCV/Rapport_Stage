@@ -1,0 +1,20 @@
+# Fichiers temporaires LaTeX
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.bbl
+*.blg
+*.run.xml
+*-blx.bib
+
+# Fichiers de sauvegarde
+*~
+.*.swp
+.modele.tex
+
+# PDF optionnel (décommenter si tu ne veux pas versionner le PDF)
+# main.pdf

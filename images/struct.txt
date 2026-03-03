@@ -1,0 +1,8 @@
+-Modèle : 
+    -Equations du problème:
+    -Modele 2d:
+        -Etapes
+        -Nomenclature
+        - Formule analytique le long des fractures
+        -Réseau de fracture pour l'approche DNF
+        -Schéma volume fini au sein de la matrice
