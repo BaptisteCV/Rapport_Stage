@@ -564,11 +564,11 @@ C_{I,J}=\omega^2\sigma_m^{I,J}\Delta x\Delta z-C_{I,J}^W-C_{I,J}^E-C_{I,J}^S-C_{
 où $H_{(K,L),(I,J)}=\frac{2}{\left(1/\sigma_m^{K,L}+1/\sigma_m^{I,J}\right)}$ est la moyenne harmonique. Le terme source s'écrit :
 
 \begin{equation}
-\int_{V_{I,J}} \bar{Q}_{fm}^k\,dV=N_f^{I,J}\sum_{k=1}\int_0^{L_k}\bar{Q}_{fm}^k\,dx_k
+\int_{V_{I,J}} \bar{Q}_{fm}^k\,dV=\sum_{k=1}^{N_f^{I,J}}\int_0^{L_k}\bar{Q}_{fm}^k\,dx_k
 \end{equation}
 
 \begin{equation}
-\int_{V_{I,J}} \bar{Q}_{fm}^k\,dV=-\alpha_{fm}^{I,J}\bar{\varphi}_m^{I,J}N_f^{I,J}\sum_{k=1}L_k+\alpha_{fm}^{I,J}N_f^{I,J}\sum_{k=1}\bar{\Phi}_f^k
+\int_{V_{I,J}} \bar{Q}_{fm}^k\,dV=-\alpha_{fm}^{I,J}\bar{\varphi}_m^{I,J}\sum_{k=1}^{N_f^{I,J}}L_k+\alpha_{fm}^{I,J}\sum_{k=1}^{N_f^{I,J}}\bar{\Phi}_f^k
 \end{equation}
 
 \begin{equation}
@@ -593,8 +593,8 @@ Enfin, l'expression discrétisée s'écrit :
 
 \begin{equation}
 \begin{split}
-\left[C_{I,J}+\alpha_{fm}^{I,J}N_f^{I,J}\sum_{k=1}(L_k-D_{I,J})\right]\bar{\varphi}_m^{I,J}+C_{I,J}^W\bar{\varphi}_m^{I-1,J}+C_{I,J}^E\bar{\varphi}_m^{I+1,J} \\
-+C_{I,J}^S\bar{\varphi}_m^{I,J-1}+C_{I,J}^N\bar{\varphi}_m^{I,J+1}-\alpha_{fm}^{I,J}N_f^{I,J}\sum_{k=1}\left(D_{i_k}\bar{\varphi}_f^{i_k}+D_{j_k}\bar{\varphi}_f^{j_k}\right)=0
+\left[C_{I,J}+\alpha_{fm}^{I,J}\sum_{k=1}^{N_f^{I,J}}(L_k-D_{I,J})\right]\bar{\varphi}_m^{I,J}+C_{I,J}^W\bar{\varphi}_m^{I-1,J}+C_{I,J}^E\bar{\varphi}_m^{I+1,J} \\
++C_{I,J}^S\bar{\varphi}_m^{I,J-1}+C_{I,J}^N\bar{\varphi}_m^{I,J+1}-\alpha_{fm}^{I,J}\sum_{k=1}^{N_f^{I,J}}\left(D_{i_k}\bar{\varphi}_f^{i_k}+D_{j_k}\bar{\varphi}_f^{j_k}\right)=0
 \end{split}
 \end{equation}
 
@@ -643,7 +643,11 @@ Cette formulation permet d'intégrer naturellement les conditions aux bords dans
 
 \subsection{Intégration des termes de bord dans le schéma}
 
-On repart de l'équation matrice en Fourier (équation (1.63)) écrite sur un volume de contrôle $V_{I,J}$ :
+L'intégration des conditions aux bords dans le modèle DDP nécessite une modification locale du système linéaire pour les volumes de contrôle qui partagent une face avec la frontière du domaine global. Le traitement diffère selon le type de condition appliquée (mixte ou Neumann) et selon que l'on considère un bloc de matrice ou un nœud de fracture situé au bord.
+
+\subsubsection{Modification du schéma volumes finis pour la matrice}
+
+Considérons un volume de contrôle $V_{I,J}$ qui partage au moins une face avec la frontière du domaine de calcul. On repart de l'équation matrice en Fourier (équation (1.63)) :
 
 \begin{equation}
 -\int_{V_{I,J}} \nabla\cdot\left(\sigma_m\nabla \bar{\varphi}_m^{I,J}\right)\,dV+\int_{V_{I,J}}\omega^2\sigma_m\bar{\varphi}_m^{I,J}\,dV=\int_{V_{I,J}} \bar{Q}_{fm}\,dV.
@@ -655,65 +659,127 @@ En appliquant le théorème de Green-Ostrogradsky au terme diffusif, on obtient 
 \begin{equation}
 -\int_{V_{I,J}} \nabla\cdot\left(\sigma_m\nabla \bar{\varphi}_m^{I,J}\right)\,dV
 =-\int_{\partial V_{I,J}} \sigma_m\nabla \bar{\varphi}_m^{I,J}\cdot\vec{n}\,dS
-=-\sum_{F\in\{W,E,S,N\}}\int_{\Delta_F}\sigma_m\frac{\partial\bar{\varphi}_m^{I,J}}{\partial\vec{n}}\,d\ell,
+=-\sum_{F\in\{N,S,E,W\}}\int_{F}\sigma_m^{I,J}\frac{\partial\bar{\varphi}_m^{I,J}}{\partial\vec{n}}\,d\ell,
 \label{eq:ostro_applied}
 \end{equation}
 
-où $\Delta_F$ désigne la face $F$ du volume de contrôle et $\vec{n}$ la normale sortante.
+où $\vec{n}$ est la normale sortante.
 
-Pour chaque face du volume, on doit distinguer deux cas :
+Le traitement dépend de la face du volume de contrôle qui coïncide avec la frontière du domaine :
 
-\textit{Face intérieure} (partageant deux blocs de matrice) : on discrétise le flux par différences finies centrées en utilisant la moyenne harmonique, comme en (1.64).
+\textbf{(a) Face intérieure} (partageant deux blocs de matrice) : on discrétise le flux par différences finies centrées en utilisant la moyenne harmonique des conductivités, comme établi en (1.64).
 
-\textit{Face frontière globale} (coïncidant avec la limite du domaine de calcul) : on substitue la condition aux bords \eqref{eq:ghost_cell_bc} dans l'intégrale de flux :
+\textbf{(b) Face coïncidant avec la frontière ouest ($I=1$), est ($I=N_X$) ou sud ($J=1$)} : on applique la condition mixte \eqref{eq:ghost_cell_bc}. En substituant dans l'intégrale de flux, on obtient :
 
 \begin{equation}
--\int_{\Delta_F}\sigma_m^{I,J}\frac{\partial\bar{\varphi}_m^{I,J}}{\partial\vec{n}}\,d\ell
-=\int_{\Delta_F}\sigma_m^{I,J}\frac{2\alpha_F}{2+\alpha_F\Delta_F}\bar{\varphi}_m^{I,J}\,d\ell
-\simeq\sigma_m^{I,J}\frac{2\alpha_F}{2+\alpha_F\Delta_F}\Delta_F\bar{\varphi}_m^{I,J},
-\label{eq:boundary_flux_subst}
+-\int_{F}\sigma_m^{I,J}\frac{\partial\bar{\varphi}_m^{I,J}}{\partial\vec{n}}\,d\ell
+=\int_{F}\sigma_m^{I,J}\frac{2\alpha_F}{2+\alpha_F\,\Delta_F}\bar{\varphi}_m^{I,J}\,d\ell
+=\sigma_m^{I,J}\frac{2\alpha_F}{2+\alpha_F\,\Delta_F}\left(\int_F d\ell\right)\bar{\varphi}_m^{I,J},
+\label{eq:boundary_flux_mixed}
 \end{equation}
 
-où $\Delta_W=\Delta_E=\Delta z$ (longueur verticale), $\Delta_S=\Delta_N=\Delta x$ (longueur horizontale), et la distance du centre à la face est aussi notée $\Delta_W=\Delta_E=\Delta x$ (marche spatiale), $\Delta_S=\Delta_N=\Delta z$.
+où les paramètres géométriques et le coefficient $\alpha_F$ dépendent du bord considéré :
+\begin{itemize}[label=$\circ$]
+    \item \textbf{Bord ouest ou est} : 
+    \begin{align*}
+    \Delta_W = \Delta_E &= \Delta x \quad \text{(largeur perpendiculaire au bord)}, \\
+    \alpha_W = \alpha_E &= \omega \frac{K_1(\omega r)}{K_0(\omega r)} \frac{|x - x_s|}{r},
+    \end{align*}
+    et la contribution de flux mixte vaut
+    $$-\int_{W/E}\sigma_m^{I,J}\frac{\partial\bar{\varphi}_m^{I,J}}{\partial\vec{n}}\,d\ell
+    =\sigma_m^{I,J}\frac{2\alpha_{W/E}\,\Delta z}{2+\alpha_{W/E}\,\Delta x}\bar{\varphi}_m^{I,J}.$$
+    où $(x,z)$ est le centre du volume de contrôle, $(x_s, z_s)$ la position de la source, et $r = \sqrt{(x-x_s)^2 + (z-z_s)^2}$.
+    
+    \item \textbf{Bord sud} : 
+    \begin{align*}
+    \Delta_S &= \Delta z \quad \text{(largeur perpendiculaire au bord)}, \\
+    \alpha_S &= \omega \frac{K_1(\omega r)}{K_0(\omega r)} \frac{|z - z_s|}{r}.
+    \end{align*}
+    et la contribution de flux mixte vaut
+    $$-\int_{S}\sigma_m^{I,J}\frac{\partial\bar{\varphi}_m^{I,J}}{\partial\vec{n}}\,d\ell
+    =\sigma_m^{I,J}\frac{2\alpha_S\,\Delta x}{2+\alpha_S\,\Delta z}\bar{\varphi}_m^{I,J}.$$
+\end{itemize}
 
-En discrétisant le terme de réaction et en reportant dans \eqref{eq:matrix_start_163}, on retrouve la forme du schéma volumes finis avec les notations de (1.64) :
+\textbf{(c) Face coïncidant avec la frontière nord ($J=N_Z$)} : on applique une condition de Neumann (flux sortant nul ou prescrit $q_N$), ce qui donne une contribution nulle (ou un terme source) dans l'intégrale de flux.
+
+En combinant les contributions des quatre faces et en discrétisant le terme de réaction, on obtient le schéma volumes finis modifié :
 
 \begin{equation}
 \begin{split}
-\left[C_{I,J}+\alpha_{fm}^{I,J}N_f^{I,J}\sum_{k=1}(L_k-D_{I,J})\right]\bar{\varphi}_m^{I,J}
+\left[C_{I,J}+\alpha_{fm}^{I,J}\sum_{k=1}^{N_f^{I,J}}(L_k-D_{I,J})\right]\bar{\varphi}_m^{I,J}
 +C_{I,J}^W\bar{\varphi}_m^{I-1,J}+C_{I,J}^E\bar{\varphi}_m^{I+1,J} \\
-+C_{I,J}^S\bar{\varphi}_m^{I,J-1}+C_{I,J}^N\bar{\varphi}_m^{I,J+1}
--\alpha_{fm}^{I,J}N_f^{I,J}\sum_{k=1}\left(D_{i_k}\bar{\varphi}_f^{i_k}+D_{j_k}\bar{\varphi}_f^{j_k}\right)=0,
++C_{I,J}^S\bar{\varphi}_m^{I,J-1}+C_{I,J}^N\bar{\varphi}_m^{I,J+1}-\alpha_{fm}^{I,J}\sum_{k=1}^{N_f^{I,J}}\left(D_{i_k}\bar{\varphi}_f^{i_k}+D_{j_k}\bar{\varphi}_f^{j_k}\right)=b_{I,J},
 \end{split}
 \label{eq:scheme_with_bc}
 \end{equation}
 
-où les coefficients $C_{I,J}^F$ sont définis selon que la face $F$ est intérieure ou frontière globale :
+où les coefficients $C_{I,J}^F$ et le second membre $b_{I,J}$ sont définis selon la nature de chaque face du volume de contrôle :
+
 \begin{itemize}[label = \textbullet]
-    \item \textbf{Face intérieure} : $C_{I,J}^F$ suit la définition (1.64) en utilisant la moyenne harmonique,
-    \item \textbf{Face frontière globale} $F$ (ex. : $I=1$ pour West, $I=N_X$ pour East, $J=1$ pour South) : 
-    $$C_{I,J}^F=0, \qquad C_{I,J}\leftarrow C_{I,J}+\sigma_m^{I,J}\frac{2\alpha_F}{2+\alpha_F\Delta_F}\,\Delta_F.$$
+    \item \textbf{Face intérieure} : $C_{I,J}^F$ suit la définition (1.64) utilisant la moyenne harmonique ; $b_{I,J}=0$.
+    
+    \item \textbf{Face coïncidant avec le bord ouest ($I=1$), est ($I=N_X$) ou sud ($J=1$)} (condition mixte) : 
+    $$\text{ouest/est : } C_{I,J}^F=0, \qquad C_{I,J}\leftarrow C_{I,J}+\sigma_m^{I,J}\frac{2\alpha_{W/E}\,\Delta z}{2+\alpha_{W/E}\,\Delta x}, \qquad b_{I,J}=0,$$
+    $$\text{sud : } C_{I,J}^F=0, \qquad C_{I,J}\leftarrow C_{I,J}+\sigma_m^{I,J}\frac{2\alpha_{S}\,\Delta x}{2+\alpha_{S}\,\Delta z}, \qquad b_{I,J}=0.$$
+    
+    \item \textbf{Face coïncidant avec le bord nord ($J=N_Z$)} (condition de Neumann) : 
+    $$C_{I,J}^N=0, \qquad b_{I,J}=\sigma_m^{I,J}\,q_N\,\Delta x.$$
 \end{itemize}
 
-Le schéma garde ainsi la structure de (1.64), seul le traitement des faces qui démarquent la \emph{frontière globale} du domaine s'en trouve modifié.
+Le schéma conserve ainsi la structure du système linéaire \eqref{eq:scheme_with_bc} ; seuls les coefficients et le second membre des volumes de contrôle partageant une face avec la frontière du domaine sont modifiés.
+
+\subsubsection{Modification du schéma DFN pour les nœuds de fracture au bord}
+
+Les nœuds de fracture situés sur les frontières du domaine requièrent également un traitement spécifique. Considérons un nœud $n$ de fracture situé sur l'un des bords du domaine. L'équation de conservation de charge en ce nœud (établie en Section \ref{sec:dfn}) doit être modifiée pour tenir compte de la fuite de courant vers l'extérieur du domaine à travers la frontière.
+
+\textbf{Nœud situé sur le bord ouest, est ou sud (condition mixte)} : Le flux sortant à travers la fracture est modélisé par la condition mixte, ce qui conduit à une modification du coefficient diagonal de l'équation du nœud $n$ :
+
+\begin{equation}
+\begin{split}
+A_{nn}\leftarrow A_{nn} \\
++\sigma_f\,e_f\,\frac{2\alpha_n}{2+\alpha_n\,\Delta},
+\end{split}
+\label{eq:fracture_diagonal_bc}
+\end{equation}
+
+où $e_f$ est l'ouverture de la fracture au nœud $n$, $\sigma_f$ sa conductivité, et les paramètres $\Delta$ et $\alpha_n$ dépendent du bord considéré :
+\begin{itemize}[label=$\circ$]
+    \item \textbf{Bord ouest ou est} : $\Delta = \Delta x$ (largeur du domaine perpendiculaire au bord), et 
+    $$\alpha_n = \omega \frac{K_1(\omega r_n)}{K_0(\omega r_n)} \frac{|x_n - x_s|}{r_n},$$
+    où $(x_n, z_n)$ est la position du nœud $n$, $(x_s, z_s)$ la position de la source, et $r_n = \sqrt{(x_n-x_s)^2 + (z_n-z_s)^2}$.
+    
+    \item \textbf{Bord sud} : $\Delta = \Delta z$ (largeur du domaine perpendiculaire au bord), et 
+    $$\alpha_n = \omega \frac{K_1(\omega r_n)}{K_0(\omega r_n)} \frac{|z_n - z_s|}{r_n}.$$
+\end{itemize}
+
+\textbf{Nœud situé sur le bord nord (condition de Neumann)} : Un flux prescrit $q_N$ (ou nul) est directement ajouté au second membre de l'équation du nœud de fracture :
+
+\begin{equation}
+b_n\leftarrow b_n+q_N.
+\label{eq:fracture_neumann_bc}
+\end{equation}
+
+Cette formulation garantit la cohérence entre le traitement des conditions aux bords dans la matrice et dans le réseau de fractures, permettant une intégration naturelle dans le système global.
 
 \section{Assemblage du Système Global}
 \label{sec:global_system}
 
-La formulation du modèle DDP couple trois systèmes d'équations :
+La formulation complète du modèle DDP résulte du couplage de trois composantes :
 
 \begin{enumerate}
     \item \textbf{Conservation de charge aux nœuds des fractures} (Section \ref{sec:dfn}) : 
-    Un ensemble d'équations linéaires issues du bilan de charge en chaque nœud du réseau de fractures, exprimant la conservation du flux électrique le long des fractures et incorporant l'échange matrice-fracture via leur expression analytique.
+    Un ensemble d'équations linéaires issues du bilan de charge en chaque nœud du réseau de fractures, exprimant la conservation du flux électrique le long des fractures et incorporant l'échange matrice-fracture via l'expression analytique du potentiel dans la fracture.
     
     \item \textbf{Conservation de charge dans la matrice} (Section \ref{sec:fv}) : 
-    Un ensemble d'équations volumes finis appliquées à chaque bloc de matrice, avec modification des coefficients de diagonale et des entrées hors-diagonale pour les cellules situées à la frontière du domaine global, selon la section \ref{sec:boundary_conditions}.
+    Un ensemble d'équations volumes finis appliquées à chaque bloc de matrice, permettant de modéliser la diffusion du courant dans le milieu poreux.
     
-    \item \textbf{Conditions aux bords mixtes} : 
-    Intégrées via modification locale des coefficients des équations matricielles au bord, sans inconnue supplémentaire.
+    \item \textbf{Conditions aux bords} (Section \ref{sec:boundary_conditions}) : 
+    Intégrées via modification locale des coefficients diagonaux et du second membre pour les équations associées aux blocs de matrice et aux nœuds de fracture situés aux frontières du domaine.
 \end{enumerate}
 
-L'assemblage du système global procède comme suit :
+\subsection{Structure du Système Linéaire}
+
+L'assemblage du système global s'écrit sous la forme matricielle :
 
 \begin{equation}
 \mathbf{A}\,\bar{\boldsymbol{\varphi}}=\mathbf{b},
@@ -722,16 +788,33 @@ L'assemblage du système global procède comme suit :
 
 où :
 \begin{itemize}[label = \textbullet]
-    \item $\bar{\boldsymbol{\varphi}}$ est le vecteur des inconnues groupant tous les potentiels : 
-    les potentiels aux nœuds du réseau de fractures $\{\bar{\varphi}_f^{i_k}\}$ et les potentiels dans la matrice $\{\bar{\varphi}_m^{I,J}\}$,
-    
-    \item $\mathbf{A}$ est la matrice globale composée de blocs :
+    \item $\bar{\boldsymbol{\varphi}}\in\mathbb{R}^{N_{\text{tot}}}$ est le vecteur des inconnues groupant tous les potentiels électriques transformés en Fourier, avec $N_{\text{tot}}=N_{\text{nodes}}+N_X\times N_Z$, où :
     \begin{itemize}
-        \item Lignes correspondant aux fractures : coefficients issus de (section \ref{sec:dfn}),
-        \item Lignes correspondant aux blocs de matrice : coefficients issus de (1.64) avec modifications de bord (1.81)-(1.82),
+        \item $N_{\text{nodes}}$ est le nombre de nœuds du réseau de fractures,
+        \item $N_X\times N_Z$ est le nombre de blocs de matrice.
+    \end{itemize}
+    Le vecteur $\bar{\boldsymbol{\varphi}}$ est ordonné en deux blocs :
+    $$\bar{\boldsymbol{\varphi}} = \begin{pmatrix} \bar{\boldsymbol{\varphi}}_{\text{frac}} \\ \bar{\boldsymbol{\varphi}}_{\text{mat}} \end{pmatrix}, \quad \text{avec} \quad \bar{\boldsymbol{\varphi}}_{\text{frac}}=\left(\bar{\varphi}_f^1,\ldots,\bar{\varphi}_f^{N_{\text{nodes}}}\right)^T, \quad \bar{\boldsymbol{\varphi}}_{\text{mat}}=\left(\bar{\varphi}_m^{1,1},\ldots,\bar{\varphi}_m^{N_X,N_Z}\right)^T.$$
+    
+    \item $\mathbf{A}\in\mathbb{R}^{N_{\text{tot}}\times N_{\text{tot}}}$ est la matrice globale du système, composée de quatre blocs reflétant le couplage entre fractures et matrice :
+    \begin{equation}
+    \mathbf{A} = \begin{pmatrix}
+    \mathbf{A}_{\text{ff}} & \mathbf{A}_{\text{fm}} \\
+    \mathbf{A}_{\text{mf}} & \mathbf{A}_{\text{mm}}
+    \end{pmatrix},
+    \label{eq:matrix_structure}
+    \end{equation}
+    où :
+    \begin{itemize}
+        \item $\mathbf{A}_{\text{ff}}\in\mathbb{R}^{N_{\text{nodes}}\times N_{\text{nodes}}}$ contient les coefficients de couplage entre nœuds de fracture (conservation de charge le long du réseau de fractures),
+        \item $\mathbf{A}_{\text{fm}}\in\mathbb{R}^{N_{\text{nodes}}\times (N_X\times N_Z)}$ représente l'influence des potentiels de la matrice sur le réseau de fractures (échange fracture-matrice),
+        \item $\mathbf{A}_{\text{mf}}\in\mathbb{R}^{(N_X\times N_Z)\times N_{\text{nodes}}}$ décrit l'influence des potentiels des fractures sur la matrice (échange matrice-fracture),
+        \item $\mathbf{A}_{\text{mm}}\in\mathbb{R}^{(N_X\times N_Z)\times (N_X\times N_Z)}$ encode le schéma volumes finis dans la matrice (diffusion entre blocs adjacents).
     \end{itemize}
     
-    \item $\mathbf{b}$ est le vecteur second membre agrégé (nul pour la contribution en régime permanent sans charge ponctuelle ajoutée).
+    \item $\mathbf{b}\in\mathbb{R}^{N_{\text{tot}}}$ est le vecteur second membre, partitionné de manière analogue :
+    $$\mathbf{b} = \begin{pmatrix} \mathbf{b}_{\text{frac}} \\ \mathbf{b}_{\text{mat}} \end{pmatrix}.$$
+    Les composantes de $\mathbf{b}_{\text{frac}}$ sont généralement nulles, sauf si une condition de Neumann non homogène est appliquée à un nœud de fracture au bord. Les composantes de $\mathbf{b}_{\text{mat}}$ incluent les contributions des conditions de Neumann éventuellement appliquées sur les faces de bord des blocs de matrice.
 \end{itemize}
 
 Ce système linéaire est ensuite résolu numériquement pour déterminer le potentiel électrique en tous les points du domaine (nœuds de fractures et blocs de matrice).
