@@ -87,12 +87,3 @@ $$b_n \leftarrow b_n + q_N$$
 
 ---
 
-## 4) Points clés
-
-1. **Bessel en Fourier** : Les coefficients $\alpha_{bc}$ et $\alpha_n$ utilisent les fonctions de Bessel $K_0, K_1$ uniquement en mode Fourier (`fourier=true`).
-
-2. **Géométrie** : Les dénominateurs incluent les pas spatiaux pour tenir compte de l'orientation du bord (horizontale vs verticale).
-
-3. **Configuration testDFN** : Trois bordures utilisent MIXED_BC (domaine dissipatif avec Bessel), une seule (TOP) utilise NEUMANN (pas de flux).
-
-4. **Non implémenté** : TOP_BORDER en MIXED_BC n'est pas implémenté dans les fonctions Bessel.

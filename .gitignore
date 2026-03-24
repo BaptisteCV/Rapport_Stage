@@ -10,6 +10,8 @@
 *.blg
 *.run.xml
 *-blx.bib
+*.md
+*.pdf
 
 # Fichiers de sauvegarde
 *~
